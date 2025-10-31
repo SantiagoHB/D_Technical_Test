@@ -1,77 +1,57 @@
-Proyecto de ETL y Scraping de Normativas
+# Prueba Técnica - Refactor de Pipeline ETL (ANI)
 
-Descripcion del proyecto
-Este proyecto es una solucion tecnica que permite scrapear normativas oficiales, procesarlas y almacenarlas en una base de datos PostgreSQL para su analisis y consumo posterior.
+Este repositorio contiene la solución a una prueba técnica que consiste en refactorizar un script monolítico de Python (diseñado para AWS Lambda) a un pipeline ETL modular (Extracción, Validación, Escritura) orquestado con Apache Airflow.
 
-El proyecto incluye:
-- Scraping de normativas desde paginas oficiales.
-- Limpieza y normalizacion de los datos extraidos.
-- Clasificacion automatica de las normativas segun palabras clave.
-- Insercion eficiente en la base de datos PostgreSQL evitando duplicados.
-- Registro de componentes asociados a cada normativa.
-- Automatizacion de tareas mediante Apache Airflow.
+El pipeline extrae datos de normativas de la ANI, los valida contra un set de reglas configurables y los carga en una base de datos PostgreSQL, asegurando la idempotencia (no se insertan duplicados).
 
-Estructura del proyecto
-configs/            # Configuraciones del proyecto
-dags/               # DAGs de Airflow para automatizacion de ETL
-logs/               # Logs generados por Airflow
-plugins/            # Plugins adicionales de Airflow
-src/                # Codigo fuente del proyecto
-  lambda.py         # Script principal de scraping y procesamiento
-  write.py          # Modulo para insercion de datos en PostgreSQL
-.env                # Variables de entorno (no incluidas en el repo)
-docker-compose.yml  # Configuracion de contenedores para Airflow y PostgreSQL
-Dockerfile          # Imagen Docker para el proyecto
-requirements.txt    # Dependencias de Python
-README.md           # Este archivo
+## 🚀 Tecnologías Utilizadas
 
-Tecnologias utilizadas
-- Python 3.9+
-- BeautifulSoup para scraping
-- pandas para manipulacion de datos
-- psycopg2 para conexion a PostgreSQL
-- boto3 para interaccion con AWS (Secrets Manager)
-- Apache Airflow para orquestacion de tareas
-- Docker y Docker Compose para contenerizacion del proyecto
-- PostgreSQL 15 como base de datos
+* **Orquestación:** Apache Airflow
+* **Contenedores:** Docker y Docker Compose
+* **Base de Datos:** PostgreSQL 15
+* **Core:** Python 3.9
+* **Librerías:** Pandas, BeautifulSoup (Scraping), Psycopg2 (DB)
 
-Funcionalidades principales
-1. Scraping de normativas
-   - Extrae titulo, enlace, fecha de creacion y resumen de normativas.
-   - Normaliza y limpia los datos eliminando caracteres especiales.
+## 📁 Estructura del Repositorio
 
-2. Clasificacion de documentos
-   - Asigna automaticamente un rtype_id segun palabras clave en el titulo.
-   - Todos los documentos se etiquetan con una clasificacion fija (classification_id).
+-   `/configs/validation_rules.json`: Archivo JSON con las reglas de validación (regex, tipo, etc.).
+-   `/dags/dags_etl.py`: Definición del DAG principal de Airflow (`dag_etl_ani`).
+-   `/src/extraction.py`: Módulo de extracción (scraping).
+-   `/src/validation.py`: Módulo de validación de datos.
+-   `/src/write.py`: Módulo de escritura (persistencia) que contiene la lógica de idempotencia.
+-   `DDL.sql`: Script DDL para crear las tablas `regulations` y `regulations_component`.
+-   `docker-compose.yml`: Define los servicios de Airflow (webserver, scheduler) y Postgres.
+-   `Dockerfile`: Define la imagen de Airflow con las dependencias de Python.
 
-3. Insercion segura en base de datos
-   - Evita duplicados comparando title, created_at y external_link.
-   - Inserta componentes asociados a cada normativa.
+---
 
-4. Automatizacion con Airflow
-   - DAG principal (dag_etl_ani) que ejecuta tareas de scraping y escritura.
-   - Logging detallado para monitoreo de procesos.
+## 🏃‍♂️ Cómo Ejecutar el Proyecto
 
-5. Contenerizacion y despliegue
-   - Configuracion de Docker Compose para levantar Airflow y PostgreSQL.
-   - Scripts y dependencias gestionadas en Python para reproducibilidad.
+### 1. Levantar el Entorno
 
-Como ejecutar el proyecto
-1. Clonar el repositorio:
-   git clone <repo-url>
-   cd Dapper_Technical_Test
+Inicia todos los servicios de Airflow y la base de datos de Postgres.
 
-2. Configurar variables de entorno en .env (credenciales de PostgreSQL y AWS).
+```bash
+docker-compose up -d --build
 
-3. Levantar contenedores:
-   docker-compose up -d
+### 2. Crear el Esquema de la Base de Datos
 
-4. Ejecutar DAG de Airflow desde la interfaz web (localhost:8080) o pruebas locales desde lambda.py:
-   python src/lambda.py
+Espera un minuto a que el contenedor de Postgres inicie. Luego, ejecuta el siguiente comando en tu terminal para crear las tablas (asegúrate de que DDL.sql esté en tu carpeta).
 
-Consideraciones
-- Los archivos sensibles como .env y configuraciones privadas no estan incluidos en el repositorio.
-- La base de datos debe inicializarse con las tablas regulations y regulations_component antes de ejecutar el ETL.
+# (En Windows/PowerShell)
+cat DDL_corregido.sql | docker exec -i dapper_technical_test-postgres-1 psql -U airflow -d airflow
 
-Autor
-- Santiago Hernandez
+###3. Acceder a Airflow
+Abre tu navegador y ve a: URL: http://localhost:8080 Usuario: admin Clave: admin
+
+###4. Ejecutar el Pipeline
+En la interfaz de Airflow, busca el DAG llamado dag_etl_ani.
+
+Actívalo (con el interruptor a la izquierda).
+
+Haz clic en el nombre del DAG y presiona el botón "Play" (▶️) en la esquina superior derecha para ejecutarlo.
+
+###5. Verificar la Idempotencia
+Primera Ejecución: Revisa los logs de la tarea write_task. Deberías ver un mensaje como New inserted: 29.
+
+Segunda Ejecución: Ejecuta el DAG una segunda vez. Revisa los logs de write_task de esta nueva ejecución. Deberías ver New inserted: 0 y No new records found.... Esto confirma que la lógica de idempotencia funciona.
